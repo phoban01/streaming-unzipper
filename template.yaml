@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  streaming-unzip
+
+  SAM config for streaming unzip func
+
+Globals:
+  Function:
+    Timeout: 60
+
+Resources:
+  SourceBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Sub "${AWS::StackName}-ingest"
+
+  OutputBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Sub "${AWS::StackName}-output"
+
+  StreamingUnzip:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: deploy.zip
+      Handler: s3unzip
+      PackageType: Zip
+      Runtime: go1.x
+      Environment:
+        Variables:
+          OUTPUT_BUCKET: !Ref OutputBucket
+      Policies:
+      - Statement:
+        - Sid: S3UnzipPolicy
+          Effect: Allow
+          Action:
+            - s3:*
+          Resource:
+            - !Sub "arn:aws:s3:::${AWS::StackName}-ingest*"
+            - !Sub "arn:aws:s3:::${AWS::StackName}-output*"
+      Events:
+        ZipAddedEvent:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: SourceBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: ".zip"
