@@ -45,7 +45,7 @@ type Object struct {
 	Size int64  `json:"size"`
 }
 
-func unzip(ctx context.Context, downloader *manager.Downloader, uploader *manager.Uploader, bucket, key, outputBucket string) error {
+func unzip(ctx context.Context, signal chan string, downloader *manager.Downloader, uploader *manager.Uploader, bucket, key, outputBucket string) {
 	pipeReader, pipeWriter := io.Pipe()
 
 	wg := sync.WaitGroup{}
@@ -89,7 +89,7 @@ func unzip(ctx context.Context, downloader *manager.Downloader, uploader *manage
 
 	wg.Wait()
 
-	return nil
+	signal <- key
 }
 
 func handler(ctx context.Context, event InputEvent) error {
@@ -105,19 +105,17 @@ func handler(ctx context.Context, event InputEvent) error {
 	downloader := manager.NewDownloader(s3client)
 	uploader := manager.NewUploader(s3client)
 
-	wg := sync.WaitGroup{}
-
-	wg.Add(len(event.Records))
+	signal := make(chan string, len(event.Records))
 
 	for _, record := range event.Records {
 		bucket := record.S3.Bucket
 		object := record.S3.Object
-		go unzip(ctx, downloader, uploader, bucket.Name, object.Key, outputBucket)
+		go unzip(ctx, signal, downloader, uploader, bucket.Name, object.Key, outputBucket)
 	}
 
-	wg.Wait()
-
-	return nil
+	for worker := range signal {
+		log.Printf("Finished processing: %s", worker)
+	}
 }
 
 func main() {
