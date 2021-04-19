@@ -105,7 +105,9 @@ func handler(ctx context.Context, event InputEvent) {
 	downloader := manager.NewDownloader(s3client)
 	uploader := manager.NewUploader(s3client)
 
+	wg := sync.WaitGroup{}
 	signal := make(chan string, len(event.Records))
+	wg.Add(len(event.Records))
 
 	for _, record := range event.Records {
 		bucket := record.S3.Bucket
@@ -113,9 +115,16 @@ func handler(ctx context.Context, event InputEvent) {
 		go unzip(ctx, signal, downloader, uploader, bucket.Name, object.Key, outputBucket)
 	}
 
-	for worker := range signal {
-		log.Printf("Finished processing: %s", worker)
-	}
+	go func() {
+		for item := range signal {
+			log.Printf("Finished processing: %s", item)
+			wg.Done()
+		}
+	}()
+
+	wg.Wait()
+
+	close(signal)
 }
 
 func main() {
