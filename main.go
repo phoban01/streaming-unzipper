@@ -92,12 +92,12 @@ func unzip(ctx context.Context, signal chan string, downloader *manager.Download
 	signal <- key
 }
 
-func handler(ctx context.Context, event InputEvent) error {
+func handler(ctx context.Context, event InputEvent) {
 	outputBucket := os.Getenv("OUTPUT_BUCKET")
 
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 
 	s3client := s3.NewFromConfig(cfg)
